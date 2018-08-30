@@ -7,9 +7,9 @@ def read_file(fn):
         return f.read()
 
 setup(
-    name="skeleton",
+    name="remoter",
     version="0.0.1",
-    description="skeleton",
+    description="remoter framework",
     long_description=read_file("README.md"),
     author="jang",
     author_email="",
@@ -19,12 +19,14 @@ setup(
 
     entry_points={
         'console_scripts': [
-            'cmd = skeleton.cmd:main',
+            'server = example.cmd:server',
+            'client = example.cmd:client',
         ],
     },
 
     install_requires=[
                       "argcomplete",
+                      "flask",
                      ],
     tests_require=[
                     "pytest",

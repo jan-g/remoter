@@ -1,4 +1,4 @@
-# Skeleton project
+# Remoter framework for dojo projects
 
 ## To install:
 
