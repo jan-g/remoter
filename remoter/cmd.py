@@ -1,6 +1,7 @@
 import argparse
 
 import remoter.server
+import remoter.client
 
 
 def server(*cls):
@@ -18,14 +19,18 @@ def server(*cls):
     srv.run(host=args.host, port=args.port, debug=args.debug)
 
 
-def client(*cls):
+def client(cls, plr):
     p = argparse.ArgumentParser('remoter-client')
     p.add_argument('--host', default='localhost')
     p.add_argument('--port', type=int, default=8080)
     p.add_argument('--debug', default=False, action='store_true')
+    p.add_argument('--game', type=int)
+    p.add_argument('--as', dest='pid', type=int)
     args = p.parse_args()
 
-    print(args)
+    cli = remoter.client.Client(cls, plr)
+
+    cli.run(host=args.host, port=args.port, debug=args.debug, game=args.game, pid=args.pid)
 
 
 if __name__ == '__main__':

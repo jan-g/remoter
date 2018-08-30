@@ -7,7 +7,7 @@ def server():
 
 
 def client():
-    remoter.cmd.client(example.demo.Demo)
+    remoter.cmd.client(example.demo.Demo, example.demo.Player)
 
 
 if __name__ == '__main__':

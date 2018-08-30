@@ -21,12 +21,15 @@ setup(
         'console_scripts': [
             'server = example.cmd:server',
             'client = example.cmd:client',
+            'batsrv = battleships.cmd:server',
+            'batcli = battleships.cmd:client',
         ],
     },
 
     install_requires=[
                       "argcomplete",
                       "flask",
+                      "requests",
                      ],
     tests_require=[
                     "pytest",
