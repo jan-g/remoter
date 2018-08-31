@@ -1,3 +1,4 @@
+import asyncio
 import json
 import requests
 import time
@@ -25,14 +26,17 @@ class Client:
 
         g = GameProxy(self, game, pid)
         plr = self.plr(g)
+        asyncio.run(self.dispatch(game, pid, plr))
 
+    async def dispatch(self, game, pid, plr):
         # Poll and dispatch events
         while True:
             events = self.get(game, 'player', pid)
             if events != {}:
                 for k, ev in sorted((int(k), e) for k, e in events.items()):
                     try:
-                        result = getattr(plr, ev[0])(*ev[1], **ev[2])
+                        result = await \
+                            getattr(plr, ev[0])(*ev[1], **ev[2])
                         self.post(game, 'player', pid, k, args=result)
                     except Exception as ex:
                         print("exception occurred handling player event", ev[0], ex)
@@ -65,7 +69,7 @@ class GameProxy:
         self.__pid = pid
 
     def __getattr__(self, call):
-        def c(*args, **kwargs):
+        async def c(*args, **kwargs):
             if len(args) > 0:
                 kwargs[''] = args
             return self.__client.post(self.__game, call, args=kwargs)

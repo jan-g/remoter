@@ -1,6 +1,8 @@
 from collections import namedtuple
+from json.decoder import JSONDecodeError
 import random
-import flask
+from aiohttp import web
+import asyncio
 
 
 class Handler:
@@ -12,22 +14,24 @@ class Handler:
         eh = EventHandler()
         i = self.cls()
         self.instances[id(i)] = (i, eh)
-        return str(id(i))
+        return id(i)
 
-    def invoke(self, instance, method, args):
+    async def invoke(self, instance, method, args):
         m = getattr(self.instances[instance][0], method)
         try:
             pos = args.pop('')
         except KeyError:
             pos = ()
         if callable(m):
-            return m(*pos, **args)
+            return await m(*pos, **args)
 
     def new_player(self, instance):
         i, eh = self.instances[instance]
         player, pid = eh.new_player()
         try:
-            i.new_player(player)
+            print("about to launch coroutine")
+            asyncio.create_task(i.new_player(player))
+            print("launched coroutine")
         except Exception:
             pass
         return pid
@@ -46,17 +50,13 @@ class PlayerProxy:
 
     def __getattr__(self, call):
         # p.foo(a, b, c)  -> send an asynchronous foo(a, b, c)
-        # @p.foo(a, b, c)
-        # def bar(result): -> also register a callback
-        def c(*args, **kwargs):
-            # When called, register an event to the player
-            n = self.__eh.post_event(self.__pid, call, args, kwargs)
-            print("{} returned event {}".format(call, n))
 
-            def dec(fn):
-                print("decorating function {} to accept cb for {} item {}".format(fn.__name__, call, n))
-                self.__eh.add_callback(self.__pid, n, fn)
-            return dec
+        async def c(*args, **kwargs):
+            # When called, register an event to the player
+            future = asyncio.Future()
+            n = self.__eh.post_event(self.__pid, call, args, kwargs, future)
+            print("{} returned event {}".format(call, n))
+            return await future
         return c
 
     def __enqueue(self, call, kwargs):
@@ -84,64 +84,76 @@ class EventHandler:
 
     def ack_event(self, pid, n, result):
         cb = self.events[pid][1][n].cb
-        try:
-            if callable(cb):
-                cb(result)
-        except Exception as ex:
-            print("callback excepted:", ex)
+        cb.set_result(result)
         del self.events[pid][1][n]
 
-    def post_event(self, pid, call, args, kwargs):
+    def post_event(self, pid, call, args, kwargs, future):
         n, events = self.events[pid]
         n += 1
-        events[n] = Event(call, args, kwargs, None)
+        events[n] = Event(call, args, kwargs, future)
         self.events[pid] = (n, events)
         return n
-
-    def add_callback(self, pid, n, cb):
-        _, events = self.events[pid]
-        e = events[n]
-        events[n] = Event(e.call, e.args, e.kwargs, cb)
 
 
 class Server:
     def __init__(self):
         self.handlers = {}
-        app = self.app = flask.Flask('remoter')
-        app.route('/<cls>', methods=['POST'])(self.new)
-        app.route('/<cls>/<int:instance>/<method>', methods=['POST'])(self.invoke)
-        app.route('/<cls>/<int:instance>/player', methods=['POST'])(self.new_player)
-        app.route('/<cls>/<int:instance>/player/<int:pid>', methods=['GET'])(self.player_events)
-        app.route('/<cls>/<int:instance>/player/<int:pid>/<int:event>', methods=['POST'])(self.ack_player_event)
+        app = self.app = web.Application()
+        app.add_routes([web.post('/{cls}', self.new),
+                        web.post('/{cls}/{instance}/player', self.new_player),
+                        web.get('/{cls}/{instance}/player/{pid}', self.player_events),
+                        web.post('/{cls}/{instance}/player/{pid}/{event}', self.ack_player_event),
+                        web.post('/{cls}/{instance}/{method}', self.invoke),
+                        ])
 
     def run(self, host=None, port=None, debug=False):
-        self.app.run(host=host, port=port, debug=debug)
+        web.run_app(self.app, host=host, port=port)
 
     def register(self, cls):
         self.handlers[cls.__module__ + '.' + cls.__name__] = Handler(cls)
 
     # POST /<cls>
-    def new(self, cls):
-        return self.handlers[cls].new()
+    async def new(self, request):
+        cls = request.match_info['cls']
+        return web.json_response(self.handlers[cls].new())
 
     # POST /<cls>/<instance>/<method> {"": [p1, p2, p3, ...], "arg1": "value1", ...}
-    def invoke(self, cls, instance, method):
-        args = flask.request.get_json(force=True)
-        return flask.jsonify(self.handlers[cls].invoke(instance, method, args))
+    async def invoke(self, request):
+        cls = request.match_info['cls']
+        instance = int(request.match_info['instance'])
+        method = request.match_info['method']
+
+        try:
+            args = await request.json()
+        except JSONDecodeError:
+            args = {}
+        return web.json_response(await self.handlers[cls].invoke(instance, method, args))
 
     # POST /<cls>/<instance>/player
-    def new_player(self, cls, instance):
-        return flask.jsonify(self.handlers[cls].new_player(instance))
+    async def new_player(self, request):
+        cls = request.match_info['cls']
+        instance = int(request.match_info['instance'])
+
+        return web.json_response(self.handlers[cls].new_player(instance))
 
     # GET /<cls>/<instance>/player/<pid>
-    def player_events(self, cls, instance, pid):
-        return flask.jsonify(self.handlers[cls].player_events(instance, pid))
+    async def player_events(self, request):
+        cls = request.match_info['cls']
+        instance = int(request.match_info['instance'])
+        pid = int(request.match_info['pid'])
+
+        return web.json_response(self.handlers[cls].player_events(instance, pid))
 
     # POST /<cls>/<instance>/player/<pid>/<event> result
-    def ack_player_event(self, cls, instance, pid, event):
+    async def ack_player_event(self, request):
+        cls = request.match_info['cls']
+        instance = int(request.match_info['instance'])
+        pid = int(request.match_info['pid'])
+        event = int(request.match_info['event'])
+
         try:
-            arg = flask.request.get_json(force=True)
-        except Exception as ex:
+            arg = await request.json()
+        except JSONDecodeError:
             arg = None
         self.handlers[cls].ack_event(instance, pid, event, arg)
-        return ""
+        return web.Response()

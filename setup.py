@@ -26,9 +26,8 @@ setup(
         ],
     },
 
-    install_requires=[
-                      "argcomplete",
-                      "flask",
+    install_requires=["argcomplete",
+                      "aiohttp",
                       "requests",
                      ],
     tests_require=[
