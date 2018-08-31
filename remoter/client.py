@@ -1,7 +1,6 @@
 import asyncio
 import json
-import requests
-import time
+import aiohttp
 
 
 class Client:
@@ -10,54 +9,63 @@ class Client:
         self.plr = plr
         self.url = None
 
-    def run(self, host='localhost', port=8080, debug=False, game=None, pid=None):
+    def run(self, host='localhost', port=8080, game=None, pid=None):
         self.url = 'http://{}:{}/{}.{}'.format(host, port, self.cls.__module__, self.cls.__name__)
 
-        # Make a new game, if required
-        if game is None:
-            game = self.post()
-            pid = None
-            print("--game", game)
+        asyncio.run(self.dispatch(game, pid))
 
-        # Make a new PID, if required
-        if pid is None:
-            pid = self.post(game, 'player')
-            print("--as", pid)
+    async def dispatch(self, game, pid):
+        self.session = aiohttp.ClientSession()
+        async with self.session:
 
-        g = GameProxy(self, game, pid)
-        plr = self.plr(g)
-        asyncio.run(self.dispatch(game, pid, plr))
+            # Make a new game, if required
+            if game is None:
+                game = await self.post()
+                pid = None
+                print("--game", game)
 
-    async def dispatch(self, game, pid, plr):
-        # Poll and dispatch events
-        while True:
-            events = self.get(game, 'player', pid)
-            if events != {}:
-                for k, ev in sorted((int(k), e) for k, e in events.items()):
-                    try:
-                        result = await \
-                            getattr(plr, ev[0])(*ev[1], **ev[2])
-                        self.post(game, 'player', pid, k, args=result)
-                    except Exception as ex:
-                        print("exception occurred handling player event", ev[0], ex)
-                        self.post(game, 'player', pid, k, args=str(ex))
-            time.sleep(1)
+            # Make a new PID, if required
+            if pid is None:
+                pid = await self.post(game, 'player')
+                print("--as", pid)
 
-    def post(self, *path, args=None):
+            g = GameProxy(self, game, pid)
+            plr = self.plr(g)
+
+            # Poll and dispatch events
+            while True:
+                events = await self.get(game, 'player', pid)
+                if events != {}:
+                    for k, ev in sorted((int(k), e) for k, e in events.items()):
+                        try:
+                            result = await getattr(plr, ev[0])(*ev[1], **ev[2])
+                            await self.post(game, 'player', pid, k, args=result)
+                        except SystemExit as ex:
+                            await self.post(game, 'player', pid, k, args=str(ex))
+                            raise
+                        except Exception as ex:
+                            print("exception occurred handling player event", ev[0], ex)
+                            await self.post(game, 'player', pid, k, args=str(ex))
+                else:
+                    await asyncio.sleep(1)
+
+    async def post(self, *path, args=None):
         path = '/'.join(str(p) for p in path)
         if path != '':
             path = '/' + path
         try:
-            return requests.post(self.url + path, json=args).json()
+            async with self.session.post(self.url + path, json=args) as resp:
+                return await resp.json()
         except json.decoder.JSONDecodeError:
             return None
 
-    def get(self, *path):
+    async def get(self, *path):
         path = '/'.join(str(p) for p in path)
         if path != '':
             path = '/' + path
         try:
-            return requests.get(self.url + path).json()
+            async with self.session.get(self.url + path) as resp:
+                return await resp.json()
         except json.decoder.JSONDecodeError:
             return None
 
@@ -72,5 +80,5 @@ class GameProxy:
         async def c(*args, **kwargs):
             if len(args) > 0:
                 kwargs[''] = args
-            return self.__client.post(self.__game, call, args=kwargs)
+            return await self.__client.post(self.__game, call, args=kwargs)
         return c

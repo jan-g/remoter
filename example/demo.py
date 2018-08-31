@@ -1,3 +1,6 @@
+from remoter import BasePlayer
+
+
 class Demo:
     def __init__(self):
         print("new Demo instantiated")
@@ -8,7 +11,8 @@ class Demo:
 
     async def new_player(self, p):
         print("new player {} registered".format(p))
-        await p.welcome(msg="hello, world")
+        name = await p.input("what's your name? ")
+        await p.welcome(msg="hello, {}".format(name))
         print("new player returned from welcome")
 
         result = await p.succ(5)
@@ -16,12 +20,11 @@ class Demo:
 
         await p.welcome("goodbye")
         print("also got here")
+        await p.exit(0)
+        print("client killed")
 
 
-class Player:
-    def __init__(self, game=None):
-        self.game = game
-
+class Player(BasePlayer):
     async def welcome(self, msg=None):
         print("welcome: {}".format(msg))
         print("we try adding 6 and 7 and get:", await self.game.test(a=6, b=7))

@@ -156,4 +156,4 @@ class Server:
         except JSONDecodeError:
             arg = None
         self.handlers[cls].ack_event(instance, pid, event, arg)
-        return web.Response()
+        return web.json_response()
