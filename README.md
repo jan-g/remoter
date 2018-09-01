@@ -18,6 +18,8 @@ implementation, etc.)
 Then, write your driver in two parts: a main Game (this'll become the
 server-hosted class) and a Player (which runs on the client).
 
+Finally, you'll want a `cmd.py` which launches either the server or the client.
+
 ## What happens in the server / client setup
 
 The `Game` class receives notifications when new players connect: this is
@@ -62,3 +64,40 @@ this.)
 ## To install:
 
     pip install -e .
+
+## Running the battleships game
+
+### As a single process
+
+    python battleships/game.py
+
+### As a server/client
+
+- Launch the server:
+
+      % batsrv
+      ======== Running on http://0.0.0.0:8080 ========
+      (Press CTRL+C to quit)
+    
+  (or `python battleships/cmd.py`)
+
+- Launch the first client:
+
+      % batcli
+      --game 4514826560
+      --as 1741
+      Player 1 pick your ships!
+
+- Connect to the same game with a second client:
+
+      % batcli --game 4514826560
+      --as 1340
+      Player 2 pick your ships!
+
+  The `--as 1340` command-lilne option will permit reconnecting as the same player if this client dies.
+
+- Additional client connections are rejected:
+
+      % batcli --game 4514826560
+      --as 7072
+      Too many players already connected to this game.

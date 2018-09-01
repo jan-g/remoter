@@ -88,9 +88,9 @@ class Board:
                        for _, cell in self.sea.items())
 
     def display(self):
-        print('\n'.join(self.display_str()))
+        print('\n'.join(self.lines()))
 
-    def display_str(self):
+    def lines(self):
         d = ["  " + digits[:self.mx]]
         for y in range(self.my):
             line = ""
@@ -99,7 +99,7 @@ class Board:
             d.append(ascii_lowercase[y] + ' ' + line)
         return d
 
-    def other_str(self):
+    def other_lines(self):
         d = ["  " + digits[:self.mx]]
         for y in range(self.my):
             line = ""
@@ -107,7 +107,3 @@ class Board:
                 line += self.sea.get((x, y), '~').replace(Board.SHIP, '~')
             d.append(ascii_lowercase[y] + ' ' + line)
         return d
-
-    def display_other(self):
-        """Display just a set of guesses with results"""
-        print('\n'.join(self.other_str()))

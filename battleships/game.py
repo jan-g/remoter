@@ -12,31 +12,50 @@ ships = [("Carrier", 5),
 
 class Game:
     def __init__(self):
-        self.boards = []
+        self.players = []
+        self.boards = {}
 
     async def new_player(self, plr):
-        if len(self.boards) < 2:
-            board = Board()
-            board.plr = plr
-            pn = board.pn = len(self.boards)
-            self.boards.append(board)
-            await plr.welcome("welcome!", pn)
-            board.ready = False
-            await plr.get_ships()
+        if len(self.players) < 2:
+            self.players.append(plr)
 
-            # Once we're ready, make sure everyone else is too.
-            self.boards[pn].ready = True
+            # Keep tabs on this player's id number
+            pn = plr.pn = len(self.players)
+
+            self.boards[pn] = Board()
+
+            # This player isn't yet ready. We track this because multiple
+            # players can join in parallel; when each becomes ready, we check
+            # to determine if everyone is good to go.
+            plr.ready = False
+
+            # Tell the player who they are, and ask them for their ship placements.
+            await plr.get_ships(pn)
+
+            # Once they're ready, check if everyone else is too.
+            plr.ready = True
+
             # Is everyone ready?
-            print("is everyone ready?")
-            if len(self.boards) > 1 and all(b.ready for b in self.boards):
+            if len(self.players) > 1 and all(p.ready for p in self.players):
                 # Could just use "await self.game_loop()" here.
                 asyncio.create_task(self.game_loop())
+        else:
+            await plr.print("Too many players already connected to this game.")
+            await plr.exit(0)
 
-    async def display(self, pn):
+    async def my_board(self, pn):
+        """This is called by the Player to return the image of their board.
+
+        Used during get_ships.
+        """
         board = self.boards[pn]
-        return board.display_str()
+        return board.lines()
 
     async def add_ship(self, pn, x, y, dx, dy, size):
+        """This is called by the Player to place a ship.
+
+        If the ship is successfully placed, return True.
+        """
         board = self.boards[pn]
         try:
             board.add_ship(x, y, dx, dy, size)
@@ -45,45 +64,33 @@ class Game:
             return False
 
     async def game_loop(self):
-        player, other = self.boards
-        while not other.defeated():
+        """Drive a game between two players.
+        """
+        other, player = self.players
+        while not self.boards[other.pn].defeated():
             player, other = other, player
-            plr = player.plr
 
-            await plr.print("{}. your turn".format(player.pn))
-            await plr.print()
-            await plr.print("Your board:")
-            await plr.display()
+            x, y = await player.guess(self.boards[player.pn].lines(), self.boards[other.pn].other_lines())
 
-            await plr.print()
-            await plr.print("Their board:")
-            await plr.print('\n'.join(other.other_str()))
-
-            x, y = await plr.guess()  # Asynchronously call this then carry on with the returned result
-
-            result = other.potshot(x, y)
+            result = self.boards[other.pn].potshot(x, y)
             if result == Board.MISS:
-                await plr.print("Splash!")
+                await player.print("Splash!")
             elif result == Board.NEAR:
-                await plr.print("KERSPLOOSH!!")
+                await player.print("KERSPLOOSH!!")
             else:
-                await plr.print("BOOM!!!")
+                await player.print("BOOM!!!")
 
 
-        await player.plr.print("The winner is {}".format(player.name))
-        await other.plr.print("The winner is {}".format(player.name))
-        await player.plr.exit(0)
-        await other.plr.exit(0)
+        await player.print("The winner is {}".format(player.pn))
+        await other.print("The winner is {}".format(player.pn))
+        await player.exit(0)
+        await other.exit(0)
 
 
 class Player(BasePlayer):
-    async def welcome(self, msg, pn):
-        print(msg)
-        print("You are player", pn)
+    async def get_ships(self, pn):
         self.pn = pn
-
-    async def get_ships(self):
-        print("Player {} pick your ships!".format(self.pn))
+        print("Player {} pick your ships!".format(pn))
         print("Use: R C D for input (R: row; C: column; D = A for across, D for down)")
 
         for ship, size in ships:
@@ -99,25 +106,35 @@ class Player(BasePlayer):
                     continue
 
                 # Try to place the ship
-                if not await self.game.add_ship(self.pn, x, y, dx, dy, size):
+                if not await self.game.add_ship(pn, x, y, dx, dy, size):
                     print("That ship can't go there!")
                     continue
 
                 break
 
+        print("Your final board:")
         await self.display()
 
     async def display(self):
-        print('\n'.join(await self.game.display(self.pn)))
+        # This must be a coroutine since it uses `await` - making a call back to the Game server
+        print('\n'.join(await self.game.my_board(self.pn)))
 
-    async def guess(self):
+    async def guess(self, my_lines, other_lines):
+        print()
+        print("Player {}, it's your go!".format(self.pn))
+        print()
+        print("Your board", "Their board", sep='\t')
+        for me, them in zip(my_lines, other_lines):
+            print(me, them, sep='\t')
+
         while True:
             try:
-                x, y = parse_bomb_location(input("your guess?"))
+                print()
+                x, y = parse_bomb_location(input("Your guess? "))
                 return x, y
             except KeyboardInterrupt:
                 await self.exit(0)
-            except:
+            except Exception:
                 pass
 
 
