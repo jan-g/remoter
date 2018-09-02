@@ -53,6 +53,31 @@ of the way the client/server framework is implemented:
 
   `asyncio.create_task` can be used for this purpose.
 
+### Complex multi-stage remote communication
+
+Typically, calls from the `Player` to the `Game` are handled as synchronously
+as possible - which is to say, the `Player` waits until it has a response from
+the `Game` before contining.
+
+However, in some cases methods on the `Game` are long-running. In those cases,
+we don't want the `Player` to wait around for a response. Instead, it posts
+a request for the `Game` to take some action, then polls regularly to see if
+a value has been returned yet.
+
+In particular, methods on the `Game` class that
+
+- are called by the `Player` class, and
+- call back out to a `Player` class
+
+should be marked as long-running. This is done by adding a pseudo-variable,
+`_await=False`, to the `Game` method signature.
+
+Methods on the `Player` class that
+
+- call methods on the `Game` marked with `_await=False`
+
+must also be annotated with a `_await=False` argument.
+
 ## Helper classes
 
 There's a `remoter.BasePlayer` class which contains three remotable methods:
