@@ -1,7 +1,6 @@
 import asyncio
 from remoter import BasePlayer
 from battleships.board import Board, parse_ship_location, parse_bomb_location, ships
-from battleships.bot import Bot
 
 
 class Game:
@@ -133,7 +132,6 @@ class Player(BasePlayer):
 
 
 if __name__ == '__main__':
-    import asyncio
     g = Game()
     p1 = Player(g)
     p2 = Player(g)

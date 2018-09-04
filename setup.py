@@ -23,6 +23,7 @@ setup(
             'client = example.cmd:client',
             'batsrv = battleships.cmd:server',
             'batcli = battleships.cmd:client',
+            'batbot = battleships.cmd:bot',
         ],
     },
 

@@ -1,5 +1,6 @@
 import remoter.cmd
 import battleships.game
+import battleships.bot
 
 
 def server():
@@ -8,6 +9,10 @@ def server():
 
 def client():
     remoter.cmd.client(battleships.game.Game, battleships.game.Player)
+
+
+def bot():
+    remoter.cmd.client(battleships.game.Game, battleships.bot.SmarterBot)
 
 
 if __name__ == '__main__':
