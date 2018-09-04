@@ -1,6 +1,13 @@
 from string import ascii_lowercase, digits
 
 
+ships = [("Carrier", 5),
+         ("Battleship", 4),
+         ("Cruiser", 3),
+         ("Submarine",2),
+         ("Destroyer", 2)]
+
+
 def parse_ship_location(loc):
     loc = loc.lower().strip().replace(" ", "")
     row = ascii_lowercase.index(loc[0])
@@ -74,7 +81,7 @@ class Board:
         if self.sea.get((x, y)) == Board.SHIP:
             self.sea[x, y] = Board.SUNK
             return Board.HIT
-        elif any(self.sea.get((x + dx, y + dy)) == Board.SHIP
+        elif any(self.sea.get((x + dx, y + dy)) in (Board.SHIP, Board.SUNK)
                  for dx in (-1, 0, 1)
                  for dy in (-1, 0, 1)):
             self.sea[x, y] = Board.NEAR_GUESS

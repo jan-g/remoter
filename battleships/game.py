@@ -1,13 +1,7 @@
 import asyncio
 from remoter import BasePlayer
-from battleships.board import Board, parse_ship_location, parse_bomb_location
-
-
-ships = [("Carrier", 5),
-         ("Battleship", 4),
-         ("Cruiser", 3),
-         ("Submarine",2),
-         ("Destroyer", 2)]
+from battleships.board import Board, parse_ship_location, parse_bomb_location, ships
+from battleships.bot import Bot
 
 
 class Game:
